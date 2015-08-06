@@ -25,15 +25,19 @@ class initialize:
         rJson = r.json()
         lines='Datasets available through the BEA API:\n\n'
         n=1
+
+        dataSetList = []
         for element in rJson['BEAAPI']['Results']['Dataset']:
             if np.mod(n,5)==0:
-                lines = lines+element['DatasetName']+': '+element['DatasetDescription']+'\n\n'
+                lines = lines+element['DatasetName'].ljust(20,' ') +': '+element['DatasetDescription']+'\n\n'
+                dataSetList.append(element['DatasetName'])
             else:
-                lines = lines+element['DatasetName']+': '+element['DatasetDescription']+'\n'
+                lines = lines+element['DatasetName'].ljust(20,' ') +': '+element['DatasetDescription']+'\n'
+                dataSetList.append(element['DatasetName'])
             n+=1
         print(lines)
-        self.dataSetList = lines
-
+        self.dataSets = lines
+        self.dataSetList = dataSetList
 
     def getParameterList(self,dataSetName):
 
@@ -41,33 +45,45 @@ class initialize:
 
         r = requests.get('http://www.bea.gov/api/data?&UserID='+self.apiKey+'&method=GETPARAMETERLIST&datasetname='+dataSetName+'&ResultFormat=JSON&')
         rJson = r.json()
-        lines = 'Parameters for the '+dataSetName+' dataset.'
+        lines = 'Parameters for the '+dataSetName+' dataset.\n\n'
 
+        strWidth  = 25
+        parameterList = []
         for element in rJson['BEAAPI']['Results']['Parameter']:
 
-            lines = lines+'Parameter name:  '+element['ParameterName']+'\n'
-            lines = lines+'Description:  '+element['ParameterDescription']+'\n'
+            elementKeys = list(element.keys())
+
+            lines = lines+'Parameter name'.ljust(strWidth,' ')  +'  '+element['ParameterName']+'\n'
+            lines = lines+'Description'.ljust(strWidth,' ')  + '  '+element['ParameterDescription']+'\n'
+
+            parameterList.append(element['ParameterName'])
 
             if element['ParameterIsRequiredFlag']==0:
-                lines = lines+'Required?  No'+'\n'
+                lines = lines+'Required?'.ljust(strWidth,' ')  + '  No'+'\n'
             else:
-                lines = lines+'Required?  Yes'+'\n'
-            if element['AllValue']=='':
-                lines = lines+'\"All\" Value:  N/A'+'\n'
-            else:
-                lines = lines+'\"All\" Value:  '+element['AllValue']+'\n'
+                lines = lines+'Required?'.ljust(strWidth,' ')  + '  Yes'+'\n'
+            
+            if 'AllValue' in elementKeys:
+                if element['AllValue']=='':
+                    lines = lines+'\"All\" Value'.ljust(strWidth,' ')  + '  N/A'+'\n'
+                else:
+                    lines = lines+'\"All\" Value'.ljust(strWidth,' ') +'  '+element['AllValue']+'\n'
             if element['MultipleAcceptedFlag']==0:
-                lines = lines+'Multiple (list) accepted?  No'+'\n'
+                lines = lines+'Multiple (list) accepted?'.ljust(strWidth,' ')  + '  No'+'\n'
             else:
-                lines = lines+'Multiple (list) accepted?  Yes'+'\n'
-            lines = lines+'Data type:  '+element['ParameterDataType']+'\n'
-            if element['ParameterDefaultValue']=='':
-                lines = lines+'Default value:  N/A'+'\n\n\n'
+                lines = lines+'Multiple (list) accepted?'.ljust(strWidth,' ')  + '  Yes'+'\n'
+            lines = lines+'Data type'.ljust(strWidth,' ')  + '  '+element['ParameterDataType']+'\n'
+            if 'ParameterDefaultValue' in elementKeys:
+                if element['ParameterDefaultValue']=='':
+                    lines = lines+'Default value'.ljust(strWidth,' ')  + '  N/A'+'\n\n\n'
+                else:
+                    lines = lines+'Default value'.ljust(strWidth,' ')  + '  '+element['ParameterDefaultValue']+'\n\n\n'
             else:
-                lines = lines+'Default value:  '+element['ParameterDefaultValue']+'\n\n\n'
+                lines = lines+'\n\n'
 
         print(lines)
-        self.parameterList = lines
+        self.parameters = lines
+        self.parameterList = parameterList
 
     def getParameterValues(self,dataSetName, parameterName):
 
@@ -89,58 +105,57 @@ class initialize:
 
     # 2. Methods for retreiving data.
 
-    # 2.1 Reguiional Data (statistics by state, county, and MSA)
+    # 2.1 Regional Data (statistics by state, county, and MSA)
 
-    def getRegionalData(self,keyCode=None,geoFips='STATE',year='ALL'):
+    def getRegionalData(self,KeyCode=None,GeoFips='STATE',Year='ALL'):
         '''Retrieve state and regional data.
 
         Name        Type    Required?   Multiple values?    "All" Value                     Default
 
-        keyCode     int     yes         no                  N/A                             
-        geoFips     str     no          yes                 'STATE' or 'COUNTY' or 'MSA'    STATE
-        year        int     no          yes                 "ALL"                           ALL
+        KeyCode     int     yes         no                  N/A                             
+        GeoFips     str     no          yes                 'STATE' or 'COUNTY' or 'MSA'    STATE
+        Year        int     no          yes                 "ALL"                           ALL
         '''
 
-        if type(year)==list:
-            year = [str(y) for y in year]
-            year = ','.join(year)
+        if type(KeyCode)==list:
+            KeyCode = ','.join(KeyCode)
 
-        if type(geoFips)==list:
-            geoFips = ','.join(geoFips)
+        if type(Year)==list:
+            Year = [str(y) for y in Year]
+            Year = ','.join(Year)
 
-        uri = 'http://bea.gov/api/data/?UserID='+self.apiKey+'&method=GetData&datasetname=RegionalData&KeyCode='+str(keyCode)+'&Year='+str(year)+'&GeoFips='+str(geoFips)+'&ResultFormat=JSON&'
+        if type(GeoFips)==list:
+            GeoFips = ','.join(GeoFips)
+
+        uri = 'http://bea.gov/api/data/?UserID='+self.apiKey+'&method=GetData&datasetname=RegionalData&KeyCode='+str(KeyCode)+'&Year='+str(Year)+'&GeoFips='+str(GeoFips)+'&ResultFormat=JSON&'
         r = requests.get(uri)
         rJson = r.json()
 
         dataDict = {}
-        dates = []
-        yearList = []
-        name =''
-        numSeries=0
+        # dates = []
+        # YearList = []
+        # name =''
 
-        if type(year)==list:
-            year = [str(y) for y in year]
-            year = ','.join(year)
+        columnNames = []
+        dates = []
+
         try: 
             for element in rJson['BEAAPI']['Results']['Data']:
+                if element['GeoName'] not in columnNames:
+                    columnNames.append(element['GeoName'])
 
-                if element['GeoName'] != name:
-                    try:
-                        dataDict[element['GeoName']+' - '+element['GeoFips']]= np.array([float(element['DataValue'])])
-                    except:
-                        dataDict[element['GeoName']+' - '+element['GeoFips']] = np.nan
-                    name = element['GeoName']                
-                    numSeries+=1
-                else:
-                    try:
-                        dataDict[element['GeoName']+' - '+element['GeoFips']]= np.append(dataDict[element['GeoName']+' - '+element['GeoFips']],float(element['DataValue']))
-                    except:
-                        dataDict[element['GeoName']+' - '+element['GeoFips']]= np.append(dataDict[element['GeoName']+' - '+element['GeoFips']],np.nan)
-                if element['TimePeriod'] not in yearList:
-                    dates.append(convertDate(element['TimePeriod'],frequency='A'))
-                    yearList.append(element['TimePeriod'])
+                date = convertDate(element['TimePeriod'],'A')
+                if date not in dates:
+                    dates.append(date)
 
-            frame = pd.DataFrame(dataDict,index = dates)
+            data = np.zeros([len(dates),len(columnNames)])
+            data[:] = np.nan
+            frame = pd.DataFrame(data,columns = columnNames, index = dates)
+
+            for element in rJson['BEAAPI']['Results']['Data']:
+                date = convertDate(element['TimePeriod'],'A')
+                if 'DataValue' in element.keys():
+                    frame.loc[date,element['GeoName']] = float(element['DataValue'].replace(',',''))
             return frame
         except:
             print('Invalid input.',sys.exc_info()[0])
@@ -148,22 +163,26 @@ class initialize:
     
     # 2.2 NIPA (National Income and Product Accounts)
 
-    def getNipa(self,tableId=None,frequency=None,year='X',showMillions='N'):
+    def getNipa(self,TableID=None,Frequency=None,Year='X',ShowMillions='N'):
 
         '''Retrieve data from a NIPA table.
 
         Name            Type    Required?   "All" Value     Default
 
-        tableId         int     yes         N/A             None
-        frequency(A/Q)  str     yes         N/A             None
-        year            int     yes         "X"             "X"
-        showMillions    str     no          N/A             'N'   
+        TableID         int     yes         N/A             None
+        Frequency(A/Q)  str     yes         N/A             None
+        Year            int     yes         "X"             "X"
+        ShowMillions    str     no          N/A             'N'   
         '''
 
-        if frequency=='M':
-            print('Error: monthly frequency available for NIPA tables.')
+        if Frequency=='M':
+            print('Error: monthly Frequency available for NIPA tables.')
 
-        uri = 'http://bea.gov/api/data/?UserID='+self.apiKey+'&method=GetData&datasetname=NIPA&TableID='+str(tableId)+'&Frequency='+frequency+'&Year='+str(year)+'&Showmillions='+showMillions+'&ResultFormat=JSON&'
+        if type(Year)==list:
+            Year = [str(y) for y in Year]
+            Year = ','.join(Year)
+
+        uri = 'http://bea.gov/api/data/?UserID='+self.apiKey+'&method=GetData&datasetname=NIPA&TableID='+str(TableID)+'&Frequency='+Frequency+'&Year='+str(Year)+'&ShowMillions='+ShowMillions+'&ResultFormat=JSON&'
         r = requests.get(uri)
         rJson = r.json()
 
@@ -174,7 +193,7 @@ class initialize:
                 if element['LineDescription'] not in columnNames:
                     columnNames.append(element['LineDescription'])
                 
-                date = convertDate(element['TimePeriod'],frequency)
+                date = convertDate(element['TimePeriod'],Frequency)
                 if date not in dates:
                     dates.append(date)
 
@@ -183,24 +202,71 @@ class initialize:
             frame = pd.DataFrame(data,columns = columnNames, index = dates)
 
             for element in rJson['BEAAPI']['Results']['Data']:
-                date = convertDate(element['TimePeriod'],frequency)
+                date = convertDate(element['TimePeriod'],Frequency)
                 frame.loc[date,element['LineDescription']] = float(element['DataValue'].replace(',',''))
             return frame
         except:
             print('Error: invalid input.')
+
+    # # 3.3 NIUnderlyingDetail (National Income and Product Accounts)
+
+    # def getNIUnderlyingDetail(self,TableID,Frequency='A',Year='X'):
+
+    #     if type(Year)==list:
+    #         Year = [str(y) for y in Year]
+    #         Year = ','.join(Year)
+
+    #     uri = 'http://bea.gov/api/data/?UserID='+apiKey+'&method=GetData&datasetname=NIUnderlyingDetail&TableID='+str(TableID)+'&Year='+str(Year)+'&Frequency='+str(Frequency)+'&ResultFormat=JSON&'
+    #     r = requests.get(uri)
+    #     rJson = r.json()
+
+    #     columnNames = []
+    #     dates = []
+    #     try:
+
+    # 3.4 Fixed Assets
+
+    def getFixedAssets(self,TableID=None,Year='X'):
+
+        uri = 'http://bea.gov/api/data/?UserID='+self.apiKey+'&method=GetData&datasetname=FixedAssets&TableID='+str(TableID)+'&Year='+str(Year)+'&ResultFormat=JSON&'
+        r = requests.get(uri)
+        rJson = r.json()
+
+        columnNames = []
+        dates = []
+        try:
+            for element in rJson['BEAAPI']['Results']['Data']:
+                if element['LineDescription'] not in columnNames:
+                    columnNames.append(element['LineDescription'])
+                
+                date = convertDate(element['TimePeriod'],'A')
+                if date not in dates:
+                    dates.append(date)
+
+            data = np.zeros([len(dates),len(columnNames)])
+            data[:] = np.nan
+            frame = pd.DataFrame(data,columns = columnNames, index = dates)
+
+            for element in rJson['BEAAPI']['Results']['Data']:
+                date = convertDate(element['TimePeriod'],'A')
+                frame.loc[date,element['LineDescription']] = float(element['DataValue'].replace(',',''))
+            return frame
+        except:
+            print('Error: invalid input.')
+
 
     
 
 # Auxiliary function.
 
         
-def convertDate(dateString,frequency):
+def convertDate(dateString,Frequency):
 
     '''Function for converting the date strings from BEA with quarter indicators into datetime format'''
 
-    if frequency=='A':
+    if Frequency=='A':
         month='01'
-    elif frequency=='Q':
+    elif Frequency=='Q':
         if dateString[-1]=='1':
             month='01'
         elif dateString[-1]=='2':
